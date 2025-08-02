@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+pydantic
+sentence-transformers
+numpy
+httpx
+PyMuPDF
+python-dotenv
+scipy==1.11.4
+tf-keras

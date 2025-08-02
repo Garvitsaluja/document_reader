@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PolicyGuard AI: Intelligent Document Analysis</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- PDF.js for reading PDF files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js`;</script>
+
+    <!-- Mammoth.js for reading .docx files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.18/mammoth.browser.min.js"></script>
+
+    <style>
+        /* Custom styles for a polished look */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827; /* bg-gray-900 */
+        }
+        .glass-card {
+            background: rgba(31, 41, 55, 0.6); /* bg-gray-800 with opacity */
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .btn-primary {
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            box-shadow: 0 0 20px rgba(96, 165, 250, 0.5);
+            transform: translateY(-2px);
+        }
+        .btn-secondary {
+            background-color: rgba(55, 65, 81, 0.5);
+            border: 1px solid rgba(75, 85, 99, 0.8);
+            transition: all 0.3s ease;
+        }
+        .btn-secondary:hover {
+            background-color: rgba(75, 85, 99, 0.7);
+        }
+        .loader {
+            border-top-color: #3b82f6;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        /* Custom file input */
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+        .file-input-wrapper input[type=file] {
+            font-size: 100px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+        .file-input-label {
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="text-gray-200">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
+        
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-bold text-white mb-2">PolicyGuard AI</h1>
+            <p class="text-lg text-gray-400">Intelligent Document Analysis for Claims Processing</p>
+        </header>
+
+        <main class="space-y-6">
+            <!-- Step 1: Document Upload -->
+            <div id="upload-section" class="glass-card p-6 rounded-xl shadow-2xl">
+                <h2 class="text-2xl font-semibold text-white mb-4 flex items-center">
+                    <span class="bg-blue-500 text-white rounded-full h-8 w-8 flex items-center justify-center mr-3">1</span>
+                    Upload Document
+                </h2>
+                <div class="file-input-wrapper w-full">
+                    <label for="document-upload" class="file-input-label flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-600 rounded-lg hover:bg-gray-700/50 transition-colors">
+                        <svg class="w-12 h-12 text-gray-500 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                        <p class="text-gray-400"><span class="font-semibold text-blue-400">Click to upload</span> or drag and drop</p>
+                        <p class="text-xs text-gray-500">PDF or DOCX files</p>
+                        <p id="file-name" class="text-sm text-green-400 mt-2"></p>
+                    </label>
+                    <input id="document-upload" type="file" accept=".pdf,.docx" class="hidden">
+                </div>
+                <button id="summarize-button" class="hidden btn-secondary w-full mt-4 py-3 px-4 rounded-lg text-lg font-semibold text-white flex items-center justify-center gap-2">
+                    ✨ Generate AI Summary of Document
+                </button>
+            </div>
+
+            <!-- AI Summary Section -->
+            <div id="summary-section" class="hidden glass-card p-6 rounded-xl shadow-2xl">
+                <h2 class="text-2xl font-semibold text-white mb-4">✨ AI Document Summary</h2>
+                <div id="summary-output" class="text-gray-300 prose prose-invert max-w-none">
+                    <!-- Summary content will be injected here -->
+                </div>
+            </div>
+
+            <!-- Processing Status -->
+            <div id="status-section" class="hidden glass-card p-4 rounded-xl shadow-lg text-center">
+                <div class="flex items-center justify-center">
+                    <div class="loader h-6 w-6 rounded-full border-4 border-gray-700 mr-3"></div>
+                    <p id="status-message" class="text-lg font-medium text-gray-300"></p>
+                </div>
+            </div>
+
+            <!-- Step 2: Query Input -->
+            <div id="query-section" class="glass-card p-6 rounded-xl shadow-2xl opacity-50 pointer-events-none">
+                <h2 class="text-2xl font-semibold text-white mb-4 flex items-center">
+                    <span id="step2-badge" class="bg-gray-600 text-white rounded-full h-8 w-8 flex items-center justify-center mr-3">2</span>
+                    Enter Claim Details
+                </h2>
+                <textarea id="query-input" rows="3" class="w-full p-3 bg-gray-900 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-gray-200 placeholder-gray-500" placeholder="e.g., '46-year-old male, knee surgery in Pune, 3-month-old insurance policy'"></textarea>
+                <button id="analyze-button" class="btn-primary w-full mt-4 py-3 px-4 rounded-lg text-lg font-semibold text-white flex items-center justify-center gap-2" disabled>
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                    Analyze Claim
+                </button>
+            </div>
+
+            <!-- Step 3: Results -->
+            <div id="results-section" class="hidden glass-card p-6 rounded-xl shadow-2xl">
+                <h2 class="text-2xl font-semibold text-white mb-4 flex items-center">
+                    <span class="bg-green-500 text-white rounded-full h-8 w-8 flex items-center justify-center mr-3">3</span>
+                    Analysis Result
+                </h2>
+                <div id="result-output" class="space-y-4"></div>
+                <div id="clauses-section" class="mt-6">
+                    <h3 class="text-xl font-semibold text-white mb-3">Relevant Clauses Used for Decision</h3>
+                    <div id="clauses-output" class="space-y-3 p-4 bg-gray-900/50 border border-gray-700 rounded-lg max-h-64 overflow-y-auto"></div>
+                </div>
+                <button id="draft-email-button" class="hidden btn-secondary w-full mt-6 py-3 px-4 rounded-lg text-lg font-semibold text-white flex items-center justify-center gap-2">
+                    ✨ Draft Customer Email
+                </button>
+            </div>
+            
+            <!-- AI Email Draft Section -->
+            <div id="email-draft-section" class="hidden glass-card p-6 rounded-xl shadow-2xl">
+                <h2 class="text-2xl font-semibold text-white mb-4">✨ AI-Generated Email Draft</h2>
+                <div id="email-output" class="relative">
+                    <textarea id="email-textarea" rows="10" class="w-full p-3 bg-gray-900 border border-gray-600 rounded-lg text-gray-200"></textarea>
+                    <button id="copy-email-button" class="absolute top-2 right-2 btn-secondary px-3 py-1 rounded-md text-sm">Copy</button>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- This script tag contains the code for our Web Worker -->
+    <script id="embedding-worker" type="text/js-worker">
+        // This code runs in a separate thread and will not block the UI
+        import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0';
+
+        let model = null;
+
+        // Listen for messages from the main thread
+        self.onmessage = async (event) => {
+            const { type, data } = event.data;
+
+            if (type === 'load') {
+                try {
+                    model = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
+                        progress_callback: (progress) => {
+                            self.postMessage({ type: 'model_progress', data: progress });
+                        }
+                    });
+                    self.postMessage({ type: 'load_complete' });
+                } catch (e) {
+                    self.postMessage({ type: 'error', data: 'Failed to load model in worker.' });
+                }
+            } else if (type === 'embed') {
+                if (!model) {
+                    self.postMessage({ type: 'error', data: 'Model not loaded yet.' });
+                    return;
+                }
+                try {
+                    const embeddings = await embedChunks(data);
+                    self.postMessage({ type: 'embed_complete', data: embeddings });
+                } catch(e) {
+                    self.postMessage({ type: 'error', data: 'Failed to generate embeddings.' });
+                }
+            }
+        };
+
+        async function embedChunks(chunks) {
+            const embeddings = [];
+            for (let i = 0; i < chunks.length; i++) {
+                const chunk = chunks[i];
+                const embedding = await model(chunk, { pooling: 'mean', normalize: true });
+                embeddings.push(Array.from(embedding.data));
+                
+                if ((i + 1) % 5 === 0 || i === chunks.length - 1) {
+                    self.postMessage({ 
+                        type: 'embed_progress', 
+                        data: { progress: Math.round((i + 1) / chunks.length * 100) }
+                    });
+                }
+            }
+            return embeddings;
+        }
+    </script>
+    
+    <!-- Main Logic Script -->
+    <script type="module">
+        // State management variables
+        let documentText = null;
+        let textChunks = null;
+        let chunkEmbeddings = null;
+        let model = null; // For query embedding on main thread
+        let embeddingWorker = null;
+        let lastAnalysisResult = null; // To store result for email drafting
+
+        // DOM Elements
+        const querySection = document.getElementById('query-section');
+        const statusSection = document.getElementById('status-section');
+        const resultsSection = document.getElementById('results-section');
+        const uploadInput = document.getElementById('document-upload');
+        const fileNameEl = document.getElementById('file-name');
+        const statusMessage = document.getElementById('status-message');
+        const queryInput = document.getElementById('query-input');
+        const analyzeButton = document.getElementById('analyze-button');
+        const resultOutput = document.getElementById('result-output');
+        const clausesOutput = document.getElementById('clauses-output');
+        const step2Badge = document.getElementById('step2-badge');
+        const summarizeButton = document.getElementById('summarize-button');
+        const summarySection = document.getElementById('summary-section');
+        const summaryOutput = document.getElementById('summary-output');
+        const draftEmailButton = document.getElementById('draft-email-button');
+        const emailDraftSection = document.getElementById('email-draft-section');
+        const emailTextarea = document.getElementById('email-textarea');
+        const copyEmailButton = document.getElementById('copy-email-button');
+
+        // --- WEB WORKER INITIALIZATION ---
+        function initializeWorker() {
+            const workerScript = document.getElementById('embedding-worker').textContent;
+            const workerBlob = new Blob([workerScript], { type: 'application/javascript' });
+            embeddingWorker = new Worker(URL.createObjectURL(workerBlob), { type: 'module' });
+
+            embeddingWorker.onmessage = (event) => {
+                const { type, data } = event.data;
+                switch (type) {
+                    case 'model_progress':
+                        if (data.status === 'progress') {
+                            statusMessage.textContent = `Loading AI model... ${Math.round(data.progress)}%`;
+                        } else {
+                           statusMessage.textContent = `Loading AI model (${data.status})...`;
+                        }
+                        break;
+                    case 'load_complete':
+                        statusMessage.textContent = 'AI Model Loaded. Please upload a document.';
+                        setTimeout(() => { if (!documentText) statusSection.classList.add('hidden'); }, 2000);
+                        break;
+                    case 'embed_progress':
+                        statusMessage.textContent = `Step 2/2: Creating semantic index... ${data.progress}%`;
+                        break;
+                    case 'embed_complete':
+                        chunkEmbeddings = data;
+                        setProcessingState(false, 'Document processed. Ready for analysis.');
+                        querySection.classList.remove('opacity-50', 'pointer-events-none');
+                        analyzeButton.disabled = false;
+                        step2Badge.classList.remove('bg-gray-600');
+                        step2Badge.classList.add('bg-blue-500');
+                        summarizeButton.classList.remove('hidden'); // Show summarize button
+                        break;
+                    case 'error':
+                        console.error("Worker Error:", data);
+                        setProcessingState(false, `Error: ${data}`, true);
+                        break;
+                }
+            };
+            
+            statusSection.classList.remove('hidden');
+            statusMessage.textContent = 'Initializing background AI processor...';
+            embeddingWorker.postMessage({ type: 'load' });
+        }
+        
+        // --- EVENT LISTENERS ---
+        uploadInput.addEventListener('change', handleFileSelect);
+        analyzeButton.addEventListener('click', handleAnalysis);
+        summarizeButton.addEventListener('click', handleSummarize);
+        draftEmailButton.addEventListener('click', handleDraftEmail);
+        copyEmailButton.addEventListener('click', () => {
+            emailTextarea.select();
+            document.execCommand('copy');
+            copyEmailButton.textContent = 'Copied!';
+            setTimeout(() => { copyEmailButton.textContent = 'Copy'; }, 2000);
+        });
+
+        // --- FILE HANDLING & PARSING ---
+        async function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            fileNameEl.textContent = `Selected: ${file.name}`;
+            resultsSection.classList.add('hidden');
+            summarySection.classList.add('hidden');
+            emailDraftSection.classList.add('hidden');
+            summarizeButton.classList.add('hidden');
+            
+            setProcessingState(true, 'Reading document...');
+
+            try {
+                if (file.type === 'application/pdf') {
+                    documentText = await readPdf(file);
+                } else if (file.name.endsWith('.docx')) {
+                    documentText = await readDocx(file);
+                } else {
+                    throw new Error('Unsupported file type. Please use PDF or DOCX.');
+                }
+                
+                processDocument();
+            } catch (error) {
+                console.error("File reading error:", error);
+                setProcessingState(false, `Error: ${error.message}`, true);
+            }
+        }
+
+        async function readPdf(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+            let text = '';
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const content = await page.getTextContent();
+                text += content.items.map(item => item.str).join(' ') + '\n\n';
+            }
+            return text;
+        }
+
+        async function readDocx(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const result = await mammoth.extractRawText({ arrayBuffer });
+            return result.value;
+        }
+
+        // --- DOCUMENT PROCESSING & RAG PIPELINE ---
+        function processDocument() {
+            if (!documentText) return;
+            if (!embeddingWorker) {
+                setProcessingState(false, 'Background processor not ready.', true);
+                return;
+            }
+            setProcessingState(true, 'Step 1/2: Structuring document clauses...');
+            textChunks = chunkText(documentText);
+            if (!textChunks || textChunks.length === 0) {
+                setProcessingState(false, 'Could not extract text from document.', true);
+                return;
+            }
+            setProcessingState(true, 'Step 2/2: Creating semantic index... 0%');
+            embeddingWorker.postMessage({ type: 'embed', data: textChunks });
+        }
+
+        function chunkText(text, chunkSize = 1000) {
+            const chunks = [];
+            const paragraphs = text.split(/\n\s*\n/);
+            for (const paragraph of paragraphs) {
+                const trimmedParagraph = paragraph.trim();
+                if (trimmedParagraph.length < 20) continue;
+                if (trimmedParagraph.length <= chunkSize) {
+                    chunks.push(trimmedParagraph);
+                } else {
+                    for (let i = 0; i < trimmedParagraph.length; i += chunkSize) {
+                        chunks.push(trimmedParagraph.substring(i, i + chunkSize));
+                    }
+                }
+            }
+            return chunks.filter(c => c.trim().length > 20);
+        }
+        
+        // --- GEMINI API CALLER (Generic) ---
+        async function callGeminiAPI(prompt, isJson = false) {
+            const apiKey = ""; // Leave empty, Canvas will handle it.
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+            
+            const payload = {
+                contents: [{ role: "user", parts: [{ text: prompt }] }]
+            };
+
+            if (isJson) {
+                payload.generationConfig = { responseMimeType: "application/json" };
+            }
+            
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorBody = await response.text();
+                throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorBody}`);
+            }
+
+            const result = await response.json();
+            
+            if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
+                const text = result.candidates[0].content.parts[0].text;
+                if (isJson) {
+                    try { return JSON.parse(text); } catch (e) { throw new Error("AI returned invalid JSON."); }
+                }
+                return text;
+            } else {
+                console.error("Unexpected API response:", result);
+                throw new Error("Failed to get a valid response from the AI. It might be blocked.");
+            }
+        }
+
+        // --- ANALYSIS & GENERATION ---
+        async function handleAnalysis() {
+            const query = queryInput.value.trim();
+            if (!query) { alert('Please enter your claim details.'); return; }
+            if (!chunkEmbeddings) { alert('Please process a document first.'); return; }
+
+            setProcessingState(true, 'Analyzing claim...');
+            resultsSection.classList.add('hidden');
+            emailDraftSection.classList.add('hidden');
+
+            try {
+                if (!model) {
+                    setProcessingState(true, 'Loading query model...');
+                    const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0');
+                    model = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+                }
+
+                setProcessingState(true, 'Step 1/3: Retrieving relevant clauses...');
+                const relevantClauses = await retrieveRelevantClauses(query);
+                
+                setProcessingState(true, 'Step 2/3: Evaluating claim with AI...');
+                const resultJson = await generateDecision(query, relevantClauses);
+                lastAnalysisResult = { ...resultJson, query }; // Store for email drafting
+
+                setProcessingState(true, 'Step 3/3: Finalizing report...');
+                displayResults(resultJson, relevantClauses);
+
+            } catch (error) {
+                console.error("Analysis failed:", error);
+                setProcessingState(false, `Analysis failed: ${error.message}`, true);
+            } finally {
+                setProcessingState(false);
+            }
+        }
+
+        async function retrieveRelevantClauses(query, topK = 5) {
+            const queryEmbedding = await model(query, { pooling: 'mean', normalize: true });
+            const queryVector = Array.from(queryEmbedding.data);
+            const similarities = chunkEmbeddings.map(chunkVector => {
+                let dotProduct = 0;
+                for (let i = 0; i < queryVector.length; i++) { dotProduct += queryVector[i] * chunkVector[i]; }
+                return dotProduct;
+            });
+            const topKIndices = similarities
+                .map((similarity, index) => ({ similarity, index }))
+                .sort((a, b) => b.similarity - a.similarity)
+                .slice(0, topK)
+                .map(item => item.index);
+            return topKIndices.map(index => textChunks[index]);
+        }
+        
+        async function generateDecision(query, clauses) {
+            const prompt = `You are an expert insurance claims evaluator... Your response MUST be a single, valid JSON object... {"decision": "...", "amount": ..., "justification": [{"reason": "...", "clause": "..."}]}
+                ---
+                **Policy Clauses:**
+                ${clauses.map(c => `- ${c}`).join('\n')}
+                ---
+                **User Claim Details:**
+                ${query}
+                ---
+                Now, evaluate the claim and provide the structured JSON response.`;
+            return await callGeminiAPI(prompt, true);
+        }
+
+        // --- NEW FEATURE: DOCUMENT SUMMARY ---
+        async function handleSummarize() {
+            if (!textChunks) { alert('Please process a document first.'); return; }
+            
+            summaryOutput.innerHTML = `<div class="flex items-center"><div class="loader h-5 w-5 mr-2"></div><p>Generating summary...</p></div>`;
+            summarySection.classList.remove('hidden');
+            summarySection.scrollIntoView({ behavior: 'smooth' });
+
+            try {
+                // Use the first ~15 chunks for summary to avoid being too long
+                const summaryChunks = textChunks.slice(0, 15).join('\n\n');
+                const prompt = `You are an expert policy analyst. Read the following excerpts from an insurance policy document and provide a clear, concise summary. Focus on the most important aspects for a customer, such as:
+                - The overall purpose of the policy.
+                - Key waiting periods for specific treatments.
+                - Major exclusions (what is NOT covered).
+                - Any significant financial limits or co-payment rules.
+                Present the summary using bullet points for readability.
+                ---
+                DOCUMENT EXCERPTS:
+                ${summaryChunks}
+                ---
+                Now, provide the summary.`;
+
+                const summaryText = await callGeminiAPI(prompt);
+                summaryOutput.innerHTML = summaryText.replace(/\n/g, '<br>'); // Basic formatting
+            } catch (error) {
+                summaryOutput.innerHTML = `<p class="text-red-400">Failed to generate summary: ${error.message}</p>`;
+            }
+        }
+
+        // --- NEW FEATURE: EMAIL DRAFTING ---
+        async function handleDraftEmail() {
+            if (!lastAnalysisResult) { alert('Please analyze a claim first.'); return; }
+            
+            emailTextarea.value = 'Drafting email with AI...';
+            emailDraftSection.classList.remove('hidden');
+            emailDraftSection.scrollIntoView({ behavior: 'smooth' });
+
+            try {
+                const { decision, amount, justification, query } = lastAnalysisResult;
+                const justificationText = justification.map(j => `- ${j.reason} (based on clause: "${j.clause}")`).join('\n');
+
+                const prompt = `You are a customer service representative for an insurance company. Your task is to draft a clear, professional, and empathetic email to a policyholder regarding their recent claim.
+                
+                Use the following information to compose the email:
+                - Customer's Query: "${query}"
+                - Claim Decision: ${decision}
+                - Payout Amount: ${amount !== null ? `$${amount}` : 'Not Applicable'}
+                - Justification for Decision:
+                ${justificationText}
+
+                Structure the email with a clear subject line, a polite opening, a body that explains the decision and the reasons clearly, and a professional closing offering further assistance if needed. Do not invent new information.
+                ---
+                Now, draft the email.`;
+
+                const emailText = await callGeminiAPI(prompt);
+                emailTextarea.value = emailText;
+            } catch (error) {
+                emailTextarea.value = `Failed to draft email: ${error.message}`;
+            }
+        }
+        
+        // --- UI & DISPLAY ---
+        function displayResults(data, clauses) {
+            resultsSection.classList.remove('hidden');
+            draftEmailButton.classList.remove('hidden');
+            
+            let decisionColor = 'text-yellow-400';
+            if (data.decision === 'Approved') decisionColor = 'text-green-400';
+            if (data.decision === 'Rejected') decisionColor = 'text-red-400';
+
+            resultOutput.innerHTML = `
+                <div class="flex justify-between items-center bg-gray-900/50 p-4 rounded-lg">
+                    <span class="text-lg text-gray-300">Decision Status:</span>
+                    <span class="text-2xl font-bold ${decisionColor}">${data.decision || 'N/A'}</span>
+                </div>
+                <div class="flex justify-between items-center bg-gray-900/50 p-4 rounded-lg">
+                    <span class="text-lg text-gray-300">Payout Amount:</span>
+                    <span class="text-2xl font-bold text-white">${data.amount !== null && data.amount !== undefined ? `$${data.amount}` : 'N/A'}</span>
+                </div>
+                <div>
+                    <h4 class="text-lg font-semibold text-gray-300 mb-2">Justification:</h4>
+                    <div class="space-y-3">
+                        ${(data.justification || []).map(j => `
+                            <div class="p-4 border border-gray-700 rounded-lg bg-gray-800/60">
+                                <p class="text-gray-200 mb-2">${j.reason || 'No reason provided.'}</p>
+                                <p class="text-xs text-gray-400 italic border-l-2 border-blue-500 pl-2">Clause: "${j.clause || 'N/A'}"</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            
+            clausesOutput.innerHTML = clauses.map(c => `<p class="p-3 bg-gray-800/50 rounded-md text-sm text-gray-300">${c}</p>`).join('');
+            resultsSection.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function setProcessingState(isProcessing, message = '', isError = false) {
+            if (isProcessing) {
+                statusSection.classList.remove('hidden');
+                statusMessage.textContent = message;
+                analyzeButton.disabled = true;
+                analyzeButton.innerHTML = `<div class="loader h-6 w-6 rounded-full border-4 border-gray-400"></div> Processing...`;
+            } else {
+                if (!isError && !message) {
+                    statusSection.classList.add('hidden');
+                }
+                analyzeButton.disabled = documentText === null;
+                analyzeButton.innerHTML = `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg> Analyze Claim`;
+            }
+
+            statusSection.style.backgroundColor = isError ? '#7f1d1d' : '';
+            if (message && !isProcessing) {
+                 statusSection.classList.remove('hidden');
+                 statusMessage.textContent = message;
+                 setTimeout(() => statusSection.classList.add('hidden'), 4000);
+            }
+        }
+
+        // Initialize the Web Worker on page load
+        initializeWorker();
+
+    </script>
+</body>
+</html>
